@@ -37,7 +37,9 @@ def wait_for_completion(stack_name):
 
 
 def wait_for_completion_of_delete_stack(stack_name):
-    wait_for_cloudformation(stack_name, is_cf_deleted)
+    client = boto3.client('cloudformation')
+    waiter = client.get_waiter('stack_delete_complete')
+    waiter.wait(StackName=stack_name)
 
 
 def wait_for_cloudformation(stack_name, check_callback, timeout=600):
