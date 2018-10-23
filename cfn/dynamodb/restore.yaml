@@ -1,0 +1,57 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+#
+# This is a small test template to check which attributes are restored after a restore of a dynamodb backup.
+#
+# -----------------------------------------------------------------------------
+Parameters:
+# -----------------------------------------------------------------------------
+  Tag:
+    Type: String
+    Description: some artifical tag value to trigger an update of the cf
+    Default: ''
+
+# -----------------------------------------------------------------------------
+Resources:
+# -----------------------------------------------------------------------------
+
+  DynamoDBTable:
+  # ---------------------------------------------------------------------------
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        -
+          AttributeName: "Album"
+          AttributeType: "S"
+        -
+          AttributeName: "Artist"
+          AttributeType: "S"
+      KeySchema:
+        -
+          AttributeName: "Album"
+          KeyType: "HASH"
+        -
+          AttributeName: "Artist"
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 1
+      TimeToLiveSpecification:
+          AttributeName: "TTL"
+          Enabled: True
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: True
+
+      Tags:
+        -
+          Key: usecase
+          Value: test
+        -
+          Key: foo
+          Value: !Ref Tag
+# -----------------------------------------------------------------------------
+Outputs:
+# -----------------------------------------------------------------------------
+  TableName:
+    Description: Name of Table
+    Value: !Ref DynamoDBTable
