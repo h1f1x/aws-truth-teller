@@ -1,0 +1,5 @@
+# Use this with cfn-sphere to manually sync the stack
+region: eu-west-1
+stacks:
+  ddb-backup-restore-test:
+    template-url: ../dynamodb/restore.yaml
