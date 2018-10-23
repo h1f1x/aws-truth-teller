@@ -202,13 +202,8 @@ def wait_for_table_status(table_name, check_callback, is_check=True, timeout=200
             response = client.describe_table(TableName=table_name)
         except client.exceptions.ResourceNotFoundException:
             return
-        try:  # TODO: Remove try catch block
-            if check_callback(response) == is_check:
-                return True
-        except Exception as e:
-            log.debug(response)
-            print(e)
-            return
+        if check_callback(response) == is_check:
+            return True
         time.sleep(sleep)
     log.warn('Timeout while waiting for desired status of table.')
     return False
