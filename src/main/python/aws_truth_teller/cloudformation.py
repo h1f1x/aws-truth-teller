@@ -16,6 +16,46 @@ def get_stack_output(stack_name):
     return {e['OutputKey']: e['OutputValue'] for e in response["Stacks"][0]["Outputs"]}
 
 
+def create_stack(name, template_body):
+    client = boto3.client('cloudformation')
+    response = client.create_stack(
+        StackName=name,
+        TemplateBody=template_body,
+        OnFailure='DELETE',
+        Capabilities=['CAPABILITY_IAM'],
+        Tags=[
+            {
+                'Key': 'usecase',
+                'Value': 'test'
+            },
+        ]
+    )
+    wait_for_completion(name)
+    return response['StackId']
+
+
+def update_stack(name, template_body):
+    client = boto3.client('cloudformation')
+    try:
+        response = client.update_stack(
+            StackName=name,
+            TemplateBody=template_body,
+            Capabilities=['CAPABILITY_IAM'],
+            Parameters=[{
+                'ParameterKey': 'Tag',
+                'ParameterValue': str(datetime.now())
+            }]
+        )
+    except ClientError as e:
+        if is_boto_no_update_required_exception(e):
+            log.info("Stack {0} does not need an update".format(name))
+            return
+        print(e)
+
+    wait_for_completion(name)
+    return response['StackId']
+
+
 def delete_stack(name):
     client = boto3.client('cloudformation')
     client.delete_stack(StackName=name)
