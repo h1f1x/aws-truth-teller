@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import click
+import aws_truth_teller.lambda_functions as lf
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def test_logging():
+    lf.how_lambda_logs_to_cloudwatch()
+
+
+@cli.command()
+def cleanup():
+    pass
+
+
+if __name__ == '__main__':
+    cli()
