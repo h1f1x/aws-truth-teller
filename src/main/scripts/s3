@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+USERNAME=`echo "${USER}" | tr . - `
+STACK_NAME="s3-test-${USERNAME}"
+
+aws cloudformation deploy \
+    --template ${SCRIPT_DIR}/../../../cfn/s3/bucket.yaml \
+    --stack-name ${STACK_NAME} \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --tags Usecase=test OWNER=${USER}
+
+echo "[!] The next command should fail ...."
+aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME}
