@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+#
+# This script will deploy an s3 bucket with a file in it
+# Then trying to destory the stack w/ cloudformation
+# This should not be possible by default.
+#
+# Solution is to first delete the objects in the bucket ...
+#
+
 set -e
 
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -11,7 +19,23 @@ aws cloudformation deploy \
     --template ${SCRIPT_DIR}/../../../cfn/s3/bucket.yaml \
     --stack-name ${STACK_NAME} \
     --capabilities CAPABILITY_NAMED_IAM \
-    --tags Usecase=test OWNER=${USER}
+    --tags Usecase=test Owner=${USER}
 
 echo "[!] The next command should fail ...."
+aws cloudformation delete-stack --stack-name ${STACK_NAME}
+aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} && exit 1
+
+
+STACK_NAME="s3-test-sola-${USERNAME}"
+
+aws cloudformation deploy \
+    --template ${SCRIPT_DIR}/../../../cfn/s3/solutionA.yaml \
+    --stack-name ${STACK_NAME} \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --tags Usecase=test Owner=${USER}
+
+echo "[!] The next command should work ...."
+aws cloudformation delete-stack --stack-name ${STACK_NAME}
 aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME}
+
+echo "[*] If you see this, everything is fine"

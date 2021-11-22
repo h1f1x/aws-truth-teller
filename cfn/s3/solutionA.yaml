@@ -1,0 +1,244 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: > 
+  This template creates a s3 bucket and publish a file into it.
+
+Mappings:
+  SourceCode:
+    General:
+      S3Bucket: 'solutions'
+      KeyPrefix: 'realtime-analytics-spark-streaming/v1.1.1'
+      S3TemplateBucket: 'solutions-reference'
+      SolutionName: 'realtime-analytics-spark-streaming'
+
+Metadata:
+  cfn-lint:
+    config:
+      regions:
+        - eu-central-1
+
+Resources:
+
+  AppBucket:
+    Type: AWS::S3::Bucket
+
+  # Reuse of the bootstrap solution to copy a file :)
+  SparkDemoAppResource:
+    Type: Custom::SparkDemoAppResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !GetAtt 'SparkDemoAppLambdaFunction.Arn'
+  SparkDemoAppLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: This Lambda function executes only once to download sample demo
+        app into Application S3 bucket
+      Handler: demo_app_config/demo-app-config.lambda_handler
+      Code:
+        S3Bucket: !Join
+          - '-'
+          - - !FindInMap
+              - SourceCode
+              - General
+              - S3Bucket
+            - !Ref 'AWS::Region'
+        S3Key: !Join
+          - /
+          - - !FindInMap
+              - SourceCode
+              - General
+              - KeyPrefix
+            - demo-app-config.zip
+      Role: !GetAtt 'AppLambdaExecutionRole.Arn'
+      Environment:
+        Variables:
+          S3_BUCKET: !Join
+            - '-'
+            - - !FindInMap
+                - SourceCode
+                - General
+                - S3Bucket
+              - !Ref 'AWS::Region'
+          KEY_PREFIX: !FindInMap
+            - SourceCode
+            - General
+            - KeyPrefix
+          APP_BUCKET: !Ref 'AppBucket'
+          DEMO_APP: 'FALSE'
+      Runtime: python3.8
+      Timeout: 300
+
+  AppLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: DemoAppLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref 'AppBucket'
+                  - !Join
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref 'AppBucket'
+                      - /*
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Join
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - !Join
+                      - '-'
+                      - - !FindInMap
+                          - SourceCode
+                          - General
+                          - S3Bucket
+                        - !Ref 'AWS::Region'
+                    - /
+                    - !FindInMap
+                      - SourceCode
+                      - General
+                      - KeyPrefix
+                    - /*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Join
+                  - ''
+                  - - 'arn:aws:logs:'
+                    - !Ref 'AWS::Region'
+                    - ':'
+                    - !Ref 'AWS::AccountId'
+                    - :log-group:/aws/lambda/*
+
+
+  S3BucketCleanupServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DeleteS3Objects
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - s3:GetBucket*
+                  - s3:List*
+                  - s3:DeleteObject*
+                Resource:
+                  - !GetAtt AppBucket.Arn
+                  - !Sub 
+                    - '${BucketArn}/*'
+                    - { BucketArn: !GetAtt AppBucket.Arn }
+  
+  S3BucketCleanup:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: "\ 
+
+          #!/usr/bin/env python
+
+          # -*- coding: utf-8 -*-
+
+
+          import json
+
+          import boto3
+
+          from botocore.vendored import requests
+
+
+
+          \ \ 
+
+          def lambda_handler(event, context):
+
+          \  try:
+
+          \      bucket = event['ResourceProperties']['BucketName']
+
+
+          \      if event['RequestType'] == 'Delete':
+
+          \          s3 = boto3.resource('s3')
+
+          \          bucket = s3.Bucket(bucket)
+
+          \          for obj in bucket.objects.filter():
+
+          \              s3.Object(bucket.name, obj.key).delete()
+
+
+          \      sendResponseCfn(event, context, \"SUCCESS\")
+
+          \  except Exception as e:
+
+          \      print(e)
+
+          \      sendResponseCfn(event, context, \"FAILED\")
+
+
+
+          def sendResponseCfn(event, context, responseStatus):
+
+          \    response_body = {'Status': responseStatus,
+
+          \                     'Reason': 'Log stream name: ' + context.log_stream_name,
+
+          \                     'PhysicalResourceId': context.log_stream_name,
+
+          \                     'StackId': event['StackId'],
+
+          \                     'RequestId': event['RequestId'],
+
+          \                     'LogicalResourceId': event['LogicalResourceId'],
+
+          \                     'Data': json.loads(\"{}\")}
+
+
+          \    requests.put(event['ResponseURL'], data=json.dumps(response_body))
+
+          \      "
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt:
+          - S3BucketCleanupServiceRole
+          - Arn
+      Runtime: python3.6
+
+  cleanupBucketOnDelete:
+    Type: Custom::cleanupbucket
+    Properties:
+      ServiceToken: !GetAtt S3BucketCleanup.Arn
+      BucketName: !Ref AppBucket
