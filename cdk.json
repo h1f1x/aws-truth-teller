@@ -1,0 +1,15 @@
+{
+  "app": "pipenv run python3 app.py",
+  "output": "cdk.out",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "**/__init__.py",
+      "python/__pycache__",
+      "tests"
+    ]
+  }
+}
